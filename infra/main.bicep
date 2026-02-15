@@ -16,9 +16,8 @@ param entraClientSecret string
 param proxyBaseUrl string
 param resourceUrl string
 
-// Conditional Front Door
-param enableFrontDoor bool = false
-param frontDoorEndpointName string = ''
+// Front Door
+param frontDoorEndpointName string
 param customDomainName string = ''
 
 // --- Log Analytics ---
@@ -119,9 +118,9 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
-// --- Conditional Front Door ---
+// --- Front Door ---
 
-resource frontDoorProfile 'Microsoft.Cdn/profiles@2021-06-01' = if (enableFrontDoor) {
+resource frontDoorProfile 'Microsoft.Cdn/profiles@2021-06-01' = {
   name: 'afd-${containerAppName}'
   location: 'global'
   sku: {
@@ -129,7 +128,7 @@ resource frontDoorProfile 'Microsoft.Cdn/profiles@2021-06-01' = if (enableFrontD
   }
 }
 
-resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdEndpoints@2021-06-01' = if (enableFrontDoor) {
+resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdEndpoints@2021-06-01' = {
   name: frontDoorEndpointName
   parent: frontDoorProfile
   location: 'global'
@@ -138,7 +137,7 @@ resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdEndpoints@2021-06-01' = if
   }
 }
 
-resource frontDoorOriginGroup 'Microsoft.Cdn/profiles/originGroups@2021-06-01' = if (enableFrontDoor) {
+resource frontDoorOriginGroup 'Microsoft.Cdn/profiles/originGroups@2021-06-01' = {
   name: 'origin-group'
   parent: frontDoorProfile
   properties: {
@@ -155,7 +154,7 @@ resource frontDoorOriginGroup 'Microsoft.Cdn/profiles/originGroups@2021-06-01' =
   }
 }
 
-resource frontDoorOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2021-06-01' = if (enableFrontDoor) {
+resource frontDoorOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2021-06-01' = {
   name: 'aca-origin'
   parent: frontDoorOriginGroup
   properties: {
@@ -168,7 +167,7 @@ resource frontDoorOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2021-06-01
   }
 }
 
-resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2021-06-01' = if (enableFrontDoor) {
+resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2021-06-01' = {
   name: 'default-route'
   parent: frontDoorEndpoint
   dependsOn: [
@@ -196,7 +195,7 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2021-06-01' 
   }
 }
 
-resource frontDoorCustomDomain 'Microsoft.Cdn/profiles/customDomains@2021-06-01' = if (enableFrontDoor && customDomainName != '') {
+resource frontDoorCustomDomain 'Microsoft.Cdn/profiles/customDomains@2021-06-01' = if (customDomainName != '') {
   name: replace(customDomainName, '.', '-')
   parent: frontDoorProfile
   properties: {
@@ -208,8 +207,8 @@ resource frontDoorCustomDomain 'Microsoft.Cdn/profiles/customDomains@2021-06-01'
   }
 }
 
-resource wafPolicy 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2022-05-01' = if (enableFrontDoor) {
-  name: 'waf${containerAppName}'
+resource wafPolicy 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2022-05-01' = {
+  name: 'WafPolicy'
   location: 'global'
   sku: {
     name: 'Premium_AzureFrontDoor'
@@ -222,7 +221,7 @@ resource wafPolicy 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@20
   }
 }
 
-resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2021-06-01' = if (enableFrontDoor) {
+resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2021-06-01' = {
   parent: frontDoorProfile
   name: 'security-policy'
   properties: {
@@ -251,4 +250,4 @@ resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2021-06-01' = i
 
 output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output frontDoorEndpointHostName string = enableFrontDoor ? frontDoorEndpoint.properties.hostName : ''
+output frontDoorEndpointHostName string = frontDoorEndpoint.properties.hostName
