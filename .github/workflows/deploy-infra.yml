@@ -57,7 +57,9 @@ jobs:
             echo "Creating Entra app registration: $APP_NAME"
             APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
 
-            # Create service principal so users can consent
+            # Wait for Entra replication before creating service principal
+            echo "Waiting for app registration to propagate..."
+            sleep 30
             az ad sp create --id "$APP_ID"
           else
             echo "Found existing Entra app registration: $APP_NAME ($APP_ID)"
