@@ -1,0 +1,40 @@
+name: "Create Globally Unique Names For Resource Group"
+description: "Create unique names for Azure resources"
+inputs:
+  resourceGroupName:
+    description: "The name of the resource group"
+    required: true
+outputs:
+  uniqueString:
+    description: "The unique string generated from the resource group ID"
+    value: ${{ steps.create_unique_names.outputs.UNIQUE_STRING }}
+  acrName:
+    description: "The name of the Azure Container Registry"
+    value: ${{ steps.create_unique_names.outputs.ACR_NAME }}
+  containerAppEnvName:
+    description: "The name of the Container Apps Environment"
+    value: ${{ steps.create_unique_names.outputs.CONTAINER_APP_ENV_NAME }}
+  logAnalyticsWorkspaceName:
+    description: "The name of the Log Analytics Workspace"
+    value: ${{ steps.create_unique_names.outputs.LOG_ANALYTICS_WORKSPACE_NAME }}
+  frontDoorEndpointName:
+    description: "The name of the Front Door endpoint"
+    value: ${{ steps.create_unique_names.outputs.FRONT_DOOR_ENDPOINT_NAME }}
+runs:
+  using: "composite"
+  steps:
+    - name: Create Globally Unique Names For Resource Group
+      id: create_unique_names
+      shell: pwsh
+      run: |
+        $resourceGroupId = az group show --name ${{ inputs.resourceGroupName }} --query id -o tsv
+        $uniqueString=$(./tools/ArmUniqueStringGenerator.ps1 -InputStringValue $resourceGroupId)
+        echo "UNIQUE_STRING=$uniqueString" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $acrName="acr${uniqueString}"
+        echo "ACR_NAME=$acrName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $containerAppEnvName="cae-${uniqueString}"
+        echo "CONTAINER_APP_ENV_NAME=$containerAppEnvName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $logAnalyticsWorkspaceName="law-${uniqueString}"
+        echo "LOG_ANALYTICS_WORKSPACE_NAME=$logAnalyticsWorkspaceName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $frontDoorEndpointName="afd-${uniqueString}"
+        echo "FRONT_DOOR_ENDPOINT_NAME=$frontDoorEndpointName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

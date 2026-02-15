@@ -1,0 +1,35 @@
+name: "Azure Login"
+description: "Login to Azure using service principal credentials"
+inputs:
+  azure-deploy-client-id:
+    description: "Azure Service Principal Client ID"
+    required: true
+  azure-deploy-client-secret:
+    description: "Azure Service Principal Client Secret"
+    required: true
+  azure-deploy-subscription-id:
+    description: "Azure Subscription ID"
+    required: true
+  azure-deploy-tenant-id:
+    description: "Azure Tenant ID"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Compute Azure Credentials
+      id: compute_azure_creds
+      shell: bash
+      run: |
+        echo 'AZURE_DEPLOY_CREDENTIALS<<EOF' >> $GITHUB_OUTPUT
+        echo '{' >> $GITHUB_OUTPUT
+        echo '  "clientId": "${{ inputs.azure-deploy-client-id }}",' >> $GITHUB_OUTPUT
+        echo '  "clientSecret": "${{ inputs.azure-deploy-client-secret }}",' >> $GITHUB_OUTPUT
+        echo '  "subscriptionId": "${{ inputs.azure-deploy-subscription-id }}",' >> $GITHUB_OUTPUT
+        echo '  "tenantId": "${{ inputs.azure-deploy-tenant-id }}"' >> $GITHUB_OUTPUT
+        echo '}' >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ steps.compute_azure_creds.outputs.AZURE_DEPLOY_CREDENTIALS }}

@@ -1,0 +1,45 @@
+name: Azure Infrastructure Deployment
+
+on: workflow_dispatch
+
+jobs:
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: ./.github/actions/azure-login
+        with:
+          azure-deploy-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+          azure-deploy-client-secret: ${{ secrets.AZURE_DEPLOY_CLIENT_SECRET }}
+          azure-deploy-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
+          azure-deploy-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
+
+      - name: Create Resource Group
+        run: |
+          az group create \
+            --name ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --location ${{ vars.AZURE_LOCATION }}
+
+      - name: Generate Unique Names
+        id: unique_names
+        uses: ./.github/actions/create-unique-names
+        with:
+          resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+      - name: Deploy Azure Resources
+        run: |
+          az deployment group create \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --template-file ./infra/main.bicep \
+            --parameters \
+              containerRegistryName=${{ steps.unique_names.outputs.acrName }} \
+              containerAppEnvName=${{ steps.unique_names.outputs.containerAppEnvName }} \
+              logAnalyticsWorkspaceName=${{ steps.unique_names.outputs.logAnalyticsWorkspaceName }} \
+              entraTenantId="${{ secrets.ENTRA_TENANT_ID }}" \
+              entraClientId="${{ secrets.ENTRA_CLIENT_ID }}" \
+              entraClientSecret="${{ secrets.ENTRA_CLIENT_SECRET }}" \
+              proxyBaseUrl="${{ vars.PROXY_BASE_URL }}" \
+              resourceUrl="${{ vars.RESOURCE_URL }}"

@@ -1,0 +1,42 @@
+name: Azure App Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: ./.github/actions/azure-login
+        with:
+          azure-deploy-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+          azure-deploy-client-secret: ${{ secrets.AZURE_DEPLOY_CLIENT_SECRET }}
+          azure-deploy-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
+          azure-deploy-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
+
+      - name: Generate Unique Names
+        id: unique_names
+        uses: ./.github/actions/create-unique-names
+        with:
+          resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+      - name: Build and push to ACR
+        run: |
+          az acr build \
+            --registry ${{ steps.unique_names.outputs.acrName }} \
+            --image mcp-entra-proxy:${{ github.sha }} \
+            --image mcp-entra-proxy:latest \
+            .
+
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp update \
+            --name mcp-entra-proxy \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --image ${{ steps.unique_names.outputs.acrName }}.azurecr.io/mcp-entra-proxy:${{ github.sha }}
