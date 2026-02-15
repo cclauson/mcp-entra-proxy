@@ -29,7 +29,53 @@ jobs:
         with:
           resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
 
+      # --- Entra ID tenant (separate SP) ---
+
+      - name: Login to Entra ID Tenant
+        run: |
+          az login --service-principal \
+            --username ${{ secrets.ENTRA_DEPLOY_CLIENT_ID }} \
+            --password "${{ secrets.ENTRA_DEPLOY_CLIENT_SECRET }}" \
+            --tenant ${{ secrets.ENTRA_DEPLOY_TENANT_ID }} \
+            --allow-no-subscriptions
+
+      - name: Ensure Entra App Registration
+        id: entra_app
+        run: |
+          APP_NAME="${{ steps.unique_names.outputs.entraAppDisplayName }}"
+
+          # Check if app already exists
+          APP_ID=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
+
+          if [ -z "$APP_ID" ]; then
+            echo "Creating Entra app registration: $APP_NAME"
+            APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
+
+            # Create service principal so users can consent
+            az ad sp create --id "$APP_ID"
+          else
+            echo "Found existing Entra app registration: $APP_NAME ($APP_ID)"
+          fi
+
+          echo "APP_ID=$APP_ID" >> $GITHUB_OUTPUT
+
+          # Generate new client secret (replaces any existing credentials)
+          CLIENT_SECRET=$(az ad app credential reset --id "$APP_ID" --query password -o tsv)
+          echo "::add-mask::$CLIENT_SECRET"
+          echo "CLIENT_SECRET=$CLIENT_SECRET" >> $GITHUB_OUTPUT
+
+      # --- Back to ARM subscription ---
+
+      - name: Re-login to Azure Subscription
+        uses: ./.github/actions/azure-login
+        with:
+          azure-deploy-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+          azure-deploy-client-secret: ${{ secrets.AZURE_DEPLOY_CLIENT_SECRET }}
+          azure-deploy-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
+          azure-deploy-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
+
       - name: Deploy Azure Resources
+        id: deploy
         run: |
           az deployment group create \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
@@ -38,8 +84,30 @@ jobs:
               containerRegistryName=${{ steps.unique_names.outputs.acrName }} \
               containerAppEnvName=${{ steps.unique_names.outputs.containerAppEnvName }} \
               logAnalyticsWorkspaceName=${{ steps.unique_names.outputs.logAnalyticsWorkspaceName }} \
-              entraTenantId="${{ secrets.ENTRA_TENANT_ID }}" \
-              entraClientId="${{ secrets.ENTRA_CLIENT_ID }}" \
-              entraClientSecret="${{ secrets.ENTRA_CLIENT_SECRET }}" \
+              entraTenantId="${{ secrets.ENTRA_DEPLOY_TENANT_ID }}" \
+              entraClientId="${{ steps.entra_app.outputs.APP_ID }}" \
+              entraClientSecret="${{ steps.entra_app.outputs.CLIENT_SECRET }}" \
               proxyBaseUrl="${{ vars.PROXY_BASE_URL }}" \
               resourceUrl="${{ vars.RESOURCE_URL }}"
+
+          ACA_URL=$(az deployment group show \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.containerAppUrl.value" -o tsv)
+          echo "ACA_URL=$ACA_URL" >> $GITHUB_OUTPUT
+
+      # --- Update Entra app with ACA URL ---
+
+      - name: Login to Entra ID Tenant
+        run: |
+          az login --service-principal \
+            --username ${{ secrets.ENTRA_DEPLOY_CLIENT_ID }} \
+            --password "${{ secrets.ENTRA_DEPLOY_CLIENT_SECRET }}" \
+            --tenant ${{ secrets.ENTRA_DEPLOY_TENANT_ID }} \
+            --allow-no-subscriptions
+
+      - name: Update Entra App Redirect URI
+        run: |
+          az ad app update \
+            --id "${{ steps.entra_app.outputs.APP_ID }}" \
+            --web-redirect-uris "${{ steps.deploy.outputs.ACA_URL }}/callback"
