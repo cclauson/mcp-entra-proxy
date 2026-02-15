@@ -29,12 +29,6 @@ jobs:
         with:
           resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
 
-      - name: Compute Proxy Base URL
-        id: proxy_url
-        run: |
-          PROXY_BASE_URL="https://${{ steps.unique_names.outputs.frontDoorEndpointName }}.z01.azurefd.net"
-          echo "PROXY_BASE_URL=$PROXY_BASE_URL" >> $GITHUB_OUTPUT
-
       # --- Entra ID tenant (separate SP) ---
 
       - name: Login to Entra ID Tenant
@@ -76,7 +70,7 @@ jobs:
         run: |
           az ad app update \
             --id "${{ steps.entra_app.outputs.APP_ID }}" \
-            --web-redirect-uris "${{ steps.proxy_url.outputs.PROXY_BASE_URL }}/callback"
+            --web-redirect-uris "https://${{ vars.CUSTOM_DOMAIN_NAME }}/callback"
 
       # --- Back to ARM subscription ---
 
@@ -98,8 +92,34 @@ jobs:
               containerAppEnvName=${{ steps.unique_names.outputs.containerAppEnvName }} \
               logAnalyticsWorkspaceName=${{ steps.unique_names.outputs.logAnalyticsWorkspaceName }} \
               frontDoorEndpointName=${{ steps.unique_names.outputs.frontDoorEndpointName }} \
+              customDomainName=${{ vars.CUSTOM_DOMAIN_NAME }} \
               entraTenantId="${{ secrets.ENTRA_DEPLOY_TENANT_ID }}" \
               entraClientId="${{ steps.entra_app.outputs.APP_ID }}" \
               entraClientSecret="${{ steps.entra_app.outputs.CLIENT_SECRET }}" \
-              proxyBaseUrl="${{ steps.proxy_url.outputs.PROXY_BASE_URL }}" \
+              proxyBaseUrl="https://${{ vars.CUSTOM_DOMAIN_NAME }}" \
               resourceUrl="${{ vars.RESOURCE_URL }}"
+
+      - name: Create CNAME Record
+        shell: pwsh
+        run: |
+          $subdomain = "${{ vars.CUSTOM_DOMAIN_NAME }}".Split('.')[0]
+          $afdHostName = "${{ steps.unique_names.outputs.frontDoorEndpointName }}.z01.azurefd.net"
+          az network dns record-set cname set-record `
+            --resource-group ${{ vars.DNS_ZONE_RESOURCE_GROUP }} `
+            --zone-name ${{ vars.DNS_ZONE_NAME }} `
+            --record-set-name $subdomain `
+            --cname $afdHostName
+
+      - name: Configure AFD Custom Domain DNS Validation
+        shell: pwsh
+        run: |
+          $customDomain = "${{ vars.CUSTOM_DOMAIN_NAME }}"
+          $afdCustomDomainName = $customDomain -replace '\.', '-'
+          $subdomain = $customDomain.Split('.')[0]
+          ./tools/SetAfdDnsValidation.ps1 `
+            -ResourceGroup ${{ vars.AZURE_RESOURCE_GROUP }} `
+            -FrontDoorProfileName afd-mcp-entra-proxy `
+            -CustomDomainName $afdCustomDomainName `
+            -DnsZoneName ${{ vars.DNS_ZONE_NAME }} `
+            -DnsZoneResourceGroup ${{ vars.DNS_ZONE_RESOURCE_GROUP }} `
+            -Subdomain $subdomain
