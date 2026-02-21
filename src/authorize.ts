@@ -42,9 +42,9 @@ router.get('/authorize', (req, res) => {
     return;
   }
 
-  const tenantConfig = getTenantConfig(resource);
+  const tenantConfig = getTenantConfig();
   if (!tenantConfig) {
-    res.status(400).json({ error: 'invalid_request', error_description: 'Unknown resource' });
+    res.status(500).json({ error: 'server_error', error_description: 'Tenant not configured' });
     return;
   }
 
@@ -56,13 +56,22 @@ router.get('/authorize', (req, res) => {
     resource,
   });
 
+  // Derive Entra scopes from the inbound MCP scope parameter.
+  // OIDC scopes pass through as-is; custom scopes get prefixed with {resource}/
+  const OIDC_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access']);
+  const inboundScopes = (req.query.scope as string || '').split(/\s+/).filter(Boolean);
+  const entraScopes = inboundScopes.map(s => OIDC_SCOPES.has(s) ? s : `${resource}/${s}`);
+  if (!entraScopes.includes('openid')) {
+    entraScopes.unshift('openid');
+  }
+
   const proxyCallbackUrl = `${getProxyBaseUrl()}/callback`;
   const params = new URLSearchParams({
     client_id: tenantConfig.clientId,
     redirect_uri: proxyCallbackUrl,
     response_type: 'code',
     state: proxyState,
-    scope: 'openid profile email',
+    scope: entraScopes.join(' '),
   });
 
   if (code_challenge) {

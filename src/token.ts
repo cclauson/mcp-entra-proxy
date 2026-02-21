@@ -40,7 +40,7 @@ router.post('/oauth/token', async (req, res) => {
   // Single-use: delete the pending exchange
   pendingCodeExchanges.delete(code);
 
-  const tenantConfig = getTenantConfig(exchange.resource);
+  const tenantConfig = getTenantConfig();
   if (!tenantConfig) {
     res.status(500).json({ error: 'server_error', error_description: 'Tenant configuration not found' });
     return;

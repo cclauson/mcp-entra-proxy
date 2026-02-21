@@ -66,6 +66,56 @@ jobs:
           echo "::add-mask::$CLIENT_SECRET"
           echo "CLIENT_SECRET=$CLIENT_SECRET" >> $GITHUB_OUTPUT
 
+      - name: Configure API Scope
+        run: |
+          APP_ID="${{ steps.entra_app.outputs.APP_ID }}"
+
+          # Set identifier URI (idempotent)
+          az ad app update --id "$APP_ID" --identifier-uris "api://$APP_ID"
+
+          # Check if mcp.access scope already exists
+          EXISTING_SCOPES=$(az ad app show --id "$APP_ID" --query "api.oauth2PermissionScopes[?value=='mcp.access'].id" -o tsv)
+
+          if [ -z "$EXISTING_SCOPES" ]; then
+            echo "Adding mcp.access OAuth2 permission scope"
+            SCOPE_ID=$(uuidgen)
+            az rest --method PATCH \
+              --uri "https://graph.microsoft.com/v1.0/applications(appId='$APP_ID')" \
+              --headers "Content-Type=application/json" \
+              --body "{
+                \"api\": {
+                  \"oauth2PermissionScopes\": [{
+                    \"id\": \"$SCOPE_ID\",
+                    \"adminConsentDisplayName\": \"Access MCP server\",
+                    \"adminConsentDescription\": \"Allows the app to access the MCP server on behalf of the signed-in user.\",
+                    \"userConsentDisplayName\": \"Access MCP server\",
+                    \"userConsentDescription\": \"Allows the app to access the MCP server on your behalf.\",
+                    \"value\": \"mcp.access\",
+                    \"type\": \"User\",
+                    \"isEnabled\": true
+                  }]
+                }
+              }"
+          else
+            echo "mcp.access scope already exists"
+          fi
+
+          # Pre-authorize the app's own client ID for the scope (suppresses consent prompt)
+          # First get the scope ID
+          SCOPE_ID=$(az ad app show --id "$APP_ID" --query "api.oauth2PermissionScopes[?value=='mcp.access'].id" -o tsv)
+
+          az rest --method PATCH \
+            --uri "https://graph.microsoft.com/v1.0/applications(appId='$APP_ID')" \
+            --headers "Content-Type=application/json" \
+            --body "{
+              \"api\": {
+                \"preAuthorizedApplications\": [{
+                  \"appId\": \"$APP_ID\",
+                  \"delegatedPermissionIds\": [\"$SCOPE_ID\"]
+                }]
+              }
+            }"
+
       - name: Update Entra App Redirect URI
         run: |
           az ad app update \
@@ -96,8 +146,7 @@ jobs:
               entraTenantId="${{ secrets.ENTRA_DEPLOY_TENANT_ID }}" \
               entraClientId="${{ steps.entra_app.outputs.APP_ID }}" \
               entraClientSecret="${{ steps.entra_app.outputs.CLIENT_SECRET }}" \
-              proxyBaseUrl="https://${{ vars.CUSTOM_DOMAIN_NAME }}" \
-              resourceUrl="${{ vars.RESOURCE_URL }}"
+              proxyBaseUrl="https://${{ vars.CUSTOM_DOMAIN_NAME }}"
 
       - name: Create CNAME Record
         shell: pwsh

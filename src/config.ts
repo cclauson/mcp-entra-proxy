@@ -13,11 +13,9 @@ export interface TenantConfig {
 }
 
 let tenantConfig: TenantConfig | undefined;
-let resourceUrl: string | undefined;
 
 export function loadConfig(): void {
   const tenantId = requiredEnv('ENTRA_TENANT_ID');
-  resourceUrl = requiredEnv('RESOURCE_URL');
   tenantConfig = {
     tenantId,
     clientId: requiredEnv('ENTRA_CLIENT_ID'),
@@ -27,9 +25,8 @@ export function loadConfig(): void {
   };
 }
 
-export function getTenantConfig(resource: string): TenantConfig | undefined {
-  if (resource === resourceUrl) return tenantConfig;
-  return undefined;
+export function getTenantConfig(): TenantConfig | undefined {
+  return tenantConfig;
 }
 
 export function getProxyBaseUrl(): string {

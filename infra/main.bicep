@@ -14,7 +14,6 @@ param entraClientId string
 param entraClientSecret string
 
 param proxyBaseUrl string
-param resourceUrl string
 
 // Front Door
 param frontDoorEndpointName string
@@ -106,7 +105,6 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'ENTRA_CLIENT_ID', secretRef: 'entra-client-id' }
             { name: 'ENTRA_CLIENT_SECRET', secretRef: 'entra-client-secret' }
             { name: 'PROXY_BASE_URL', value: proxyBaseUrl }
-            { name: 'RESOURCE_URL', value: resourceUrl }
           ]
         }
       ]
