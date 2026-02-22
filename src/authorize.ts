@@ -15,15 +15,14 @@ router.get('/authorize', (req, res) => {
     client_id,
     redirect_uri,
     state,
-    resource,
     code_challenge,
     code_challenge_method,
   } = req.query as Record<string, string>;
 
-  if (!client_id || !redirect_uri || !state || !resource) {
+  if (!client_id || !redirect_uri || !state) {
     res.status(400).json({
       error: 'invalid_request',
-      error_description: 'Missing required parameters: client_id, redirect_uri, state, resource',
+      error_description: 'Missing required parameters: client_id, redirect_uri, state',
     });
     return;
   }
@@ -53,17 +52,13 @@ router.get('/authorize', (req, res) => {
     clientId: client_id,
     redirectUri: redirect_uri,
     originalState: state,
-    resource,
   });
 
-  // Derive Entra scopes from the inbound MCP scope parameter.
-  // OIDC scopes pass through as-is; custom scopes get prefixed with {resource}/
-  const OIDC_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access']);
-  const inboundScopes = (req.query.scope as string || '').split(/\s+/).filter(Boolean);
-  const entraScopes = inboundScopes.map(s => OIDC_SCOPES.has(s) ? s : `${resource}/${s}`);
-  if (!entraScopes.includes('openid')) {
-    entraScopes.unshift('openid');
-  }
+  // Pass scopes through to Entra as-is. The MCP server's metadata endpoint
+  // advertises fully-qualified scopes (e.g. api://{clientId}/mcp.access),
+  // so no derivation is needed here.
+  const inboundScope = (req.query.scope as string || '').trim();
+  const scope = inboundScope || 'openid';
 
   const proxyCallbackUrl = `${getProxyBaseUrl()}/callback`;
   const params = new URLSearchParams({
@@ -71,7 +66,7 @@ router.get('/authorize', (req, res) => {
     redirect_uri: proxyCallbackUrl,
     response_type: 'code',
     state: proxyState,
-    scope: entraScopes.join(' '),
+    scope,
   });
 
   if (code_challenge) {
@@ -115,8 +110,7 @@ router.get('/callback', (req, res) => {
     return;
   }
 
-  // Store code → resource mapping for the token exchange
-  pendingCodeExchanges.set(code, { resource: authRequest.resource });
+  pendingCodeExchanges.set(code, {});
 
   const params = new URLSearchParams({
     code,

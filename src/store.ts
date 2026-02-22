@@ -48,15 +48,12 @@ export interface AuthorizationRequest {
   clientId: string;
   redirectUri: string;
   originalState: string;
-  resource: string;
 }
 
 export const authorizationRequests = new TtlMap<string, AuthorizationRequest>(10 * 60 * 1000);
 
-// Pending code exchanges - maps Entra auth code to resource for token exchange (10 min TTL)
-export interface PendingCodeExchange {
-  resource: string;
-}
+// Pending code exchanges - maps Entra auth code for token exchange (10 min TTL)
+export interface PendingCodeExchange {}
 
 export const pendingCodeExchanges = new TtlMap<string, PendingCodeExchange>(10 * 60 * 1000);
 
