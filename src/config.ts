@@ -16,12 +16,13 @@ let tenantConfig: TenantConfig | undefined;
 
 export function loadConfig(): void {
   const tenantId = requiredEnv('ENTRA_TENANT_ID');
+  const authority = process.env['ENTRA_AUTHORITY'] || `https://login.microsoftonline.com/${tenantId}`;
   tenantConfig = {
     tenantId,
     clientId: requiredEnv('ENTRA_CLIENT_ID'),
     clientSecret: requiredEnv('ENTRA_CLIENT_SECRET'),
-    authorizeUrl: `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`,
-    tokenUrl: `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+    authorizeUrl: `${authority}/oauth2/v2.0/authorize`,
+    tokenUrl: `${authority}/oauth2/v2.0/token`,
   };
 }
 

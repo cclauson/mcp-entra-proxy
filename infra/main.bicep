@@ -14,6 +14,7 @@ param entraClientId string
 param entraClientSecret string
 
 param proxyBaseUrl string
+param entraAuthority string = ''
 
 // Front Door
 param frontDoorEndpointName string
@@ -99,13 +100,15 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
-          env: [
+          env: concat([
             { name: 'PORT', value: '3000' }
             { name: 'ENTRA_TENANT_ID', secretRef: 'entra-tenant-id' }
             { name: 'ENTRA_CLIENT_ID', secretRef: 'entra-client-id' }
             { name: 'ENTRA_CLIENT_SECRET', secretRef: 'entra-client-secret' }
             { name: 'PROXY_BASE_URL', value: proxyBaseUrl }
-          ]
+          ], entraAuthority != '' ? [
+            { name: 'ENTRA_AUTHORITY', value: entraAuthority }
+          ] : [])
         }
       ]
       scale: {

@@ -146,7 +146,8 @@ jobs:
               entraTenantId="${{ secrets.ENTRA_DEPLOY_TENANT_ID }}" \
               entraClientId="${{ steps.entra_app.outputs.APP_ID }}" \
               entraClientSecret="${{ steps.entra_app.outputs.CLIENT_SECRET }}" \
-              proxyBaseUrl="https://${{ vars.CUSTOM_DOMAIN_NAME }}"
+              proxyBaseUrl="https://${{ vars.CUSTOM_DOMAIN_NAME }}" \
+              entraAuthority="${{ vars.ENTRA_AUTHORITY }}"
 
       - name: Create CNAME Record
         shell: pwsh
