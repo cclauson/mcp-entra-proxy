@@ -44,13 +44,27 @@ jobs:
         run: |
           APP_NAME="${{ steps.unique_names.outputs.entraAppDisplayName }}"
 
+          DESIRED_AUDIENCE="AzureADMyOrg"
+
           # Check if app already exists
           APP_ID=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
+
+          # If existing app has wrong signInAudience, delete and recreate
+          # (Entra blocks downgrading from AzureADandPersonalMicrosoftAccount)
+          if [ -n "$APP_ID" ]; then
+            CURRENT_AUDIENCE=$(az ad app show --id "$APP_ID" --query signInAudience -o tsv)
+            if [ "$CURRENT_AUDIENCE" != "$DESIRED_AUDIENCE" ]; then
+              echo "signInAudience is '$CURRENT_AUDIENCE', need '$DESIRED_AUDIENCE' — recreating app"
+              az ad app delete --id "$APP_ID"
+              sleep 10
+              APP_ID=""
+            fi
+          fi
 
           if [ -z "$APP_ID" ]; then
             echo "Creating Entra app registration: $APP_NAME"
             APP_ID=$(az ad app create --display-name "$APP_NAME" \
-              --sign-in-audience AzureADMyOrg \
+              --sign-in-audience "$DESIRED_AUDIENCE" \
               --query appId -o tsv)
 
             # Wait for Entra replication before creating service principal
@@ -60,10 +74,6 @@ jobs:
           else
             echo "Found existing Entra app registration: $APP_NAME ($APP_ID)"
           fi
-
-          # Ensure signInAudience is correct for CIAM/External ID tenant (idempotent)
-          az ad app update --id "$APP_ID" \
-            --sign-in-audience AzureADMyOrg
 
           echo "APP_ID=$APP_ID" >> $GITHUB_OUTPUT
 
