@@ -50,7 +50,7 @@ jobs:
           if [ -z "$APP_ID" ]; then
             echo "Creating Entra app registration: $APP_NAME"
             APP_ID=$(az ad app create --display-name "$APP_NAME" \
-              --sign-in-audience AzureADandPersonalMicrosoftAccount \
+              --sign-in-audience AzureADMyOrg \
               --query appId -o tsv)
 
             # Wait for Entra replication before creating service principal
@@ -61,9 +61,9 @@ jobs:
             echo "Found existing Entra app registration: $APP_NAME ($APP_ID)"
           fi
 
-          # Ensure signInAudience is correct (idempotent)
+          # Ensure signInAudience is correct for CIAM/External ID tenant (idempotent)
           az ad app update --id "$APP_ID" \
-            --sign-in-audience AzureADandPersonalMicrosoftAccount
+            --sign-in-audience AzureADMyOrg
 
           echo "APP_ID=$APP_ID" >> $GITHUB_OUTPUT
 
