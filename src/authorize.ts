@@ -1,16 +1,18 @@
 import { Router } from 'express';
 import { getTenantConfig, getProxyBaseUrl } from './config.js';
 import {
-  clientRegistrations,
-  authorizationRequests,
-  pendingCodeExchanges,
+  getClient,
+  getAuthRequest,
+  setAuthRequest,
+  deleteAuthRequest,
+  setCodeExchange,
   generateState,
 } from './store.js';
 
 const router = Router();
 
 // MCP client redirects user here; proxy redirects to Entra
-router.get('/authorize', (req, res) => {
+router.get('/authorize', async (req, res) => {
   const {
     client_id,
     redirect_uri,
@@ -27,7 +29,7 @@ router.get('/authorize', (req, res) => {
     return;
   }
 
-  const client = clientRegistrations.get(client_id);
+  const client = await getClient(client_id);
   if (!client) {
     res.status(400).json({ error: 'invalid_client', error_description: 'Unknown client_id' });
     return;
@@ -48,7 +50,7 @@ router.get('/authorize', (req, res) => {
   }
 
   const proxyState = generateState();
-  authorizationRequests.set(proxyState, {
+  await setAuthRequest(proxyState, {
     clientId: client_id,
     redirectUri: redirect_uri,
     originalState: state,
@@ -78,7 +80,7 @@ router.get('/authorize', (req, res) => {
 });
 
 // Entra redirects here; proxy redirects to MCP client with Entra code
-router.get('/callback', (req, res) => {
+router.get('/callback', async (req, res) => {
   const { code, state, error, error_description } = req.query as Record<string, string>;
 
   if (!state) {
@@ -86,14 +88,14 @@ router.get('/callback', (req, res) => {
     return;
   }
 
-  const authRequest = authorizationRequests.get(state);
+  const authRequest = await getAuthRequest(state);
   if (!authRequest) {
     res.status(400).json({ error: 'invalid_request', error_description: 'Unknown or expired state' });
     return;
   }
 
   // Single-use: delete the authorization request
-  authorizationRequests.delete(state);
+  await deleteAuthRequest(state);
 
   if (error) {
     const params = new URLSearchParams({
@@ -110,7 +112,7 @@ router.get('/callback', (req, res) => {
     return;
   }
 
-  pendingCodeExchanges.set(code, {});
+  await setCodeExchange(code);
 
   const params = new URLSearchParams({
     code,

@@ -9,11 +9,13 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.4.1",
     "express": "^4.21.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "prisma": "^6.4.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

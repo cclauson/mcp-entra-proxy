@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clientRegistrations, pendingCodeExchanges } from './store.js';
+import { getClient, getCodeExchange, deleteCodeExchange } from './store.js';
 import { getTenantConfig, getProxyBaseUrl } from './config.js';
 
 const router = Router();
@@ -21,15 +21,15 @@ router.post('/oauth/token', async (req, res) => {
   }
 
   // Validate DCR client credentials
-  const client = clientRegistrations.get(client_id);
+  const client = await getClient(client_id);
   if (!client || client.clientSecret !== client_secret) {
     res.status(401).json({ error: 'invalid_client' });
     return;
   }
 
   // Look up tenant config from the code → resource mapping
-  const exchange = pendingCodeExchanges.get(code);
-  if (!exchange) {
+  const hasExchange = await getCodeExchange(code);
+  if (!hasExchange) {
     res.status(400).json({
       error: 'invalid_grant',
       error_description: 'Unknown or expired authorization code',
@@ -38,7 +38,7 @@ router.post('/oauth/token', async (req, res) => {
   }
 
   // Single-use: delete the pending exchange
-  pendingCodeExchanges.delete(code);
+  await deleteCodeExchange(code);
 
   const tenantConfig = getTenantConfig();
   if (!tenantConfig) {

@@ -4,6 +4,7 @@ import metadataRouter from './metadata.js';
 import dcrRouter from './dcr.js';
 import authorizeRouter from './authorize.js';
 import tokenRouter from './token.js';
+import { prisma, startCleanupInterval, stopCleanupInterval } from './store.js';
 
 loadConfig();
 
@@ -36,6 +37,30 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 const port = getPort();
-app.listen(port, () => {
-  console.log(`MCP Entra Proxy listening on port ${port}`);
+
+async function main() {
+  await prisma.$connect();
+  console.log('Connected to database');
+
+  startCleanupInterval();
+
+  const server = app.listen(port, () => {
+    console.log(`MCP Entra Proxy listening on port ${port}`);
+  });
+
+  const shutdown = async () => {
+    console.log('Shutting down...');
+    stopCleanupInterval();
+    server.close();
+    await prisma.$disconnect();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
+
+main().catch((err) => {
+  console.error('Failed to start:', err);
+  process.exit(1);
 });

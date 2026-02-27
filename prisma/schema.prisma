@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ClientRegistration {
+  clientId     String   @id @map("client_id")
+  clientSecret String   @map("client_secret")
+  redirectUris String[] @map("redirect_uris")
+  clientName   String?  @map("client_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("client_registrations")
+}
+
+model AuthorizationRequest {
+  proxyState    String   @id @map("proxy_state")
+  clientId      String   @map("client_id")
+  redirectUri   String   @map("redirect_uri")
+  originalState String   @map("original_state")
+  expiresAt     DateTime @map("expires_at")
+
+  @@map("authorization_requests")
+}
+
+model PendingCodeExchange {
+  code      String   @id
+  expiresAt DateTime @map("expires_at")
+
+  @@map("pending_code_exchanges")
+}

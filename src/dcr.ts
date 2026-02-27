@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import {
-  clientRegistrations,
+  setClient,
   generateClientId,
   generateClientSecret,
 } from './store.js';
 
 const router = Router();
 
-router.post('/oidc/register', (req, res) => {
+router.post('/oidc/register', async (req, res) => {
   const { redirect_uris, client_name } = req.body;
 
   if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
@@ -31,7 +31,7 @@ router.post('/oidc/register', (req, res) => {
   const clientId = generateClientId();
   const clientSecret = generateClientSecret();
 
-  clientRegistrations.set(clientId, {
+  await setClient({
     clientId,
     clientSecret,
     redirectUris: redirect_uris,
